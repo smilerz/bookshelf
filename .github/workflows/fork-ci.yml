@@ -1,0 +1,144 @@
+name: Fork CI
+
+# Build, unit tests and container image for this fork. Upstream's build.yml is left untouched (and disabled in this
+# repository) so merges from upstream stay clean; this file replaces it with the differences this fork needs:
+# it runs for the `integration` branch, builds only the Hardcover image for linux/amd64, and tags it
+# `integration` and `sha-<revision>`. Pull requests build the image without pushing, so a broken container
+# cannot merge. The job named `build` is the required status check.
+on:
+  workflow_dispatch:
+  push:
+    branches: [integration]
+  pull_request:
+    branches: [integration]
+
+permissions:
+  contents: read
+
+env:
+  DOTNET_VERSION: "6.0.427"
+  READARR_VERSION: 0.4.21
+  OUTPUT_FOLDER: ./_output
+  ARTIFACTS_FOLDER: ./_artifacts
+  TESTS_FOLDER: ./_tests
+  BUILD_SOURCEBRANCHNAME: ${{ github.head_ref || github.ref_name }}
+
+jobs:
+  build:
+    name: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      packages: write
+      checks: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - uses: jdx/mise-action@fc42bcc7ddbf51124c30f95a877a0c5168a3bfde  # v5.2.1
+
+      - name: Setup Environment Variables
+        shell: bash
+        run: |
+          echo "SDK_PATH=${{ env.DOTNET_ROOT }}/sdk/${DOTNET_VERSION}" >> "$GITHUB_ENV"
+          echo "DATE=$(date --rfc-3339=date)" >> "$GITHUB_ENV"
+
+      - name: Cache NuGet packages
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: _cache/nuget
+          key: nuget-${{ runner.os }}-${{ hashFiles('src/Directory.Packages.props', 'src/**/*.csproj', 'global.json') }}
+          restore-keys: |
+            nuget-${{ runner.os }}-
+
+      - name: Cache Node modules
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: |
+            _cache/node
+            node_modules
+          key: node-${{ runner.os }}-${{ hashFiles('package.json', 'yarn.lock') }}
+          restore-keys: |
+            node-${{ runner.os }}-
+
+      - name: Cache MSBuild outputs
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: _cache/msbuild
+          key: msbuild-${{ runner.os }}-${{ hashFiles('src/**/*.cs', 'src/**/*.csproj', 'src/**/*.targets', 'src/**/*.props') }}
+          restore-keys: |
+            msbuild-${{ runner.os }}-${{ hashFiles('src/**/*.cs', 'src/**/*.csproj', 'src/**/*.targets', 'src/**/*.props') }}
+            msbuild-${{ runner.os }}-
+
+      - name: Cache Webpack
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: _cache/webpack
+          key: webpack-${{ runner.os }}-${{ hashFiles('frontend/src/**/*', 'yarn.lock') }}
+          restore-keys: |
+            webpack-${{ runner.os }}-${{ hashFiles('frontend/src/**/*', 'yarn.lock') }}
+            webpack-${{ runner.os }}-
+
+      # Compiles with warnings as errors and StyleCop/code-style enforcement, and runs ESLint and stylelint.
+      - name: Build
+        shell: bash
+        run: ./build.sh --backend --frontend
+        env:
+          READARRVERSION: ${{ env.READARR_VERSION }}.${{ github.run_number }}
+
+      - name: Prepare tests
+        run: |
+          mkdir -p _tests/bin
+          cp _output/net6.0/linux-x64/publish/Readarr _tests/bin/
+          chmod +x _tests/bin/Readarr
+          find _tests -name "Readarr.Test.Dummy" -exec chmod a+x {} \;
+
+      - name: Test
+        shell: bash
+        run: ./test.sh Linux Unit Test
+
+      - name: Report test results
+        uses: dorny/test-reporter@a43b3a5f7366b97d083190328d2c652e1a8b6aa2  # v3.0.0
+        # Dependabot pull requests get a read-only token, which cannot create the check; the Test step above still fails the job.
+        if: ${{ always() && github.actor != 'dependabot[bot]' }}
+        with:
+          name: Unit Test Results
+          path: "**/TestResult.xml"
+          list-tests: "failed"
+          reporter: dotnet-nunit
+          fail-on-error: true
+
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069  # v4.4.1
+
+      - uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302  # v6.2.0
+        id: meta
+        with:
+          images: ghcr.io/${{ github.repository }}
+          tags: |
+            type=raw,value=integration
+            type=sha,prefix=sha-,format=short
+
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f  # v4.6.0
+        if: ${{ github.event_name == 'push' }}
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc  # v7.4.0
+        with:
+          context: .
+          file: ./docker/Dockerfile
+          platforms: linux/amd64
+          push: ${{ github.event_name == 'push' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            GIT_BRANCH=${{ env.BUILD_SOURCEBRANCHNAME }}
+            COMMIT_HASH=${{ github.event.pull_request.head.sha || github.sha }}
+            BUILD_DATE=${{ env.DATE }}
+            METADATA_URL=https://hardcover.bookinfo.pro
+            HARDCOVER=true
