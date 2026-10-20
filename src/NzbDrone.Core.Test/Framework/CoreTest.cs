@@ -20,6 +20,13 @@ namespace NzbDrone.Core.Test.Framework
     {
         protected void UseRealHttp()
         {
+            // Fork addition: live-service tests (api.bookinfo.pro and others) can wait out a 100 second timeout per
+            // request, and the shared server is overloaded. CI sets this variable so they are skipped, not run.
+            if (Environment.GetEnvironmentVariable("SKIP_LIVE_NETWORK_TESTS") == "1")
+            {
+                Assert.Ignore("Live network tests are disabled by SKIP_LIVE_NETWORK_TESTS.");
+            }
+
             Mocker.GetMock<IPlatformInfo>().SetupGet(c => c.Version).Returns(new Version("3.0.0"));
             Mocker.GetMock<IOsInfo>().SetupGet(c => c.Version).Returns("1.0.0");
             Mocker.GetMock<IOsInfo>().SetupGet(c => c.Name).Returns("TestOS");
