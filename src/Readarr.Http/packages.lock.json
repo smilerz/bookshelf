@@ -1,7 +1,7 @@
 {
   "version": 2,
   "dependencies": {
-    "net6.0": {
+    "net10.0": {
       "FluentValidation": {
         "type": "Direct",
         "requested": "[9.5.4, )",
@@ -1951,7 +1951,7 @@
         "contentHash": "7l/0/yD91NQRJYt4DadyI1yuLqrLjt509b2peDO9Authzm3cHTxCk1su9LVi9CQu35MG9wnoAw/ingqtc/+jAQ=="
       }
     },
-    "net6.0/linux-musl-arm64": {
+    "net10.0/linux-musl-arm64": {
       "Microsoft.Data.SqlClient.SNI.runtime": {
         "type": "Transitive",
         "resolved": "2.1.1",
@@ -2880,7 +2880,7 @@
         }
       }
     },
-    "net6.0/linux-musl-x64": {
+    "net10.0/linux-musl-x64": {
       "Microsoft.Data.SqlClient.SNI.runtime": {
         "type": "Transitive",
         "resolved": "2.1.1",
@@ -3809,7 +3809,7 @@
         }
       }
     },
-    "net6.0/linux-x64": {
+    "net10.0/linux-x64": {
       "Microsoft.Data.SqlClient.SNI.runtime": {
         "type": "Transitive",
         "resolved": "2.1.1",
@@ -4738,7 +4738,7 @@
         }
       }
     },
-    "net6.0/osx-x64": {
+    "net10.0/osx-x64": {
       "Microsoft.Data.SqlClient.SNI.runtime": {
         "type": "Transitive",
         "resolved": "2.1.1",
