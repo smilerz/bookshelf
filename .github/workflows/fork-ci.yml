@@ -96,9 +96,14 @@ jobs:
           chmod +x _tests/bin/Readarr
           find _tests -name "Readarr.Test.Dummy" -exec chmod a+x {} \;
 
+      # Tests that call live services (api.bookinfo.pro and others) are skipped here: that server is overloaded and
+      # each request can wait out a 100 second timeout (14 of the 15 minutes this step took). UseRealHttp() in
+      # CoreTest.cs honors this variable. They still run when it is unset.
       - name: Test
         shell: bash
         run: ./test.sh Linux Unit Test
+        env:
+          SKIP_LIVE_NETWORK_TESTS: "1"
 
       - name: Report test results
         uses: dorny/test-reporter@a43b3a5f7366b97d083190328d2c652e1a8b6aa2  # v3.0.0
