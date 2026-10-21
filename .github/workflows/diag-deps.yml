@@ -1,0 +1,36 @@
+name: Diagnose dependencies (spike only, do not merge)
+
+# Prints the complete vulnerable and outdated package set with dependency paths, so fixes can be made in one pass.
+on:
+  pull_request:
+    branches: [integration]
+    paths: [".github/workflows/diag-deps.yml"]
+
+permissions:
+  contents: read
+
+jobs:
+  diag:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68  # v6.0.0
+        with:
+          dotnet-version: "10.0.x"
+      - name: Restore without failing on audit warnings
+        run: dotnet restore src/Readarr.sln -p:TreatWarningsAsErrors=false -p:NuGetAudit=true
+      - name: Vulnerable packages, direct and transitive
+        run: dotnet list src/Readarr.sln package --vulnerable --include-transitive 2>&1 | grep -v "^\s*$" | tee vuln.txt | head -150
+      - name: Outdated direct packages
+        run: dotnet list src/Readarr.sln package --outdated 2>&1 | grep -E "^   > |Project " | head -120
+      - name: Why are the flagged packages here
+        run: |
+          for p in System.Drawing.Common System.Security.Cryptography.Pkcs Microsoft.IdentityModel.JsonWebTokens System.IdentityModel.Tokens.Jwt Microsoft.Extensions.Caching.Memory; do
+            echo "=================== $p"
+            dotnet nuget why src/NzbDrone.Core/Readarr.Core.csproj $p 2>&1 | head -25
+            dotnet nuget why src/NzbDrone.Host/Readarr.Host.csproj $p 2>&1 | head -25
+            dotnet nuget why src/NzbDrone.Core.Test/Readarr.Core.Test.csproj $p 2>&1 | head -25
+          done
