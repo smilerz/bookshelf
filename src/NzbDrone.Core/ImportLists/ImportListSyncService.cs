@@ -140,7 +140,13 @@ namespace NzbDrone.Core.ImportLists
             var addedAuthors = _addAuthorService.AddAuthors(authorsToAdd, false);
             var addedBooks = _addBookService.AddBooks(booksToAdd, false);
 
-            var message = string.Format($"Import List Sync Completed. Items found: {items.Count}, Authors added: {authorsToAdd.Count}, Books added: {booksToAdd.Count}");
+            var message = string.Format($"Import List Sync Completed. Items found: {items.Count}, Authors added: {addedAuthors.Count}, Books added: {addedBooks.Count}");
+
+            var failedCount = (authorsToAdd.Count - addedAuthors.Count) + (booksToAdd.Count - addedBooks.Count);
+            if (failedCount > 0)
+            {
+                message += $", failed: {failedCount} (see the errors above)";
+            }
 
             _logger.ProgressInfo(message);
 
