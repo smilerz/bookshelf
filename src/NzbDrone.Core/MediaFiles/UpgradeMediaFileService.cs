@@ -50,7 +50,11 @@ namespace NzbDrone.Core.MediaFiles
         public BookFileMoveResult UpgradeBookFile(BookFile bookFile, LocalBook localBook, bool copyOnly = false)
         {
             var moveFileResult = new BookFileMoveResult();
-            var existingFiles = localBook.Book.BookFiles.Value;
+            // A book that was only just added has no lazy loader for its files (the import failed here with a NullReferenceException),
+            // so read them from the database instead of assuming they were loaded.
+            var existingFiles = localBook.Book.BookFiles?.Value
+                                ?? _mediaFileService.GetFilesByBook(localBook.Book.Id)
+                                ?? new List<BookFile>();
 
             // An author without a folder, or one whose folder is not inside any root folder, cannot take the file. Report it as a
             // missing root folder (the import handles that case and says so) instead of failing with a NullReferenceException.
