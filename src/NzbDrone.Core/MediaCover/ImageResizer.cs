@@ -1,10 +1,8 @@
 using System;
+using System.IO;
 using NzbDrone.Common.Disk;
 using NzbDrone.Common.EnvironmentInfo;
-using SixLabors.ImageSharp;
-using SixLabors.ImageSharp.Formats;
-using SixLabors.ImageSharp.Formats.Jpeg;
-using SixLabors.ImageSharp.Processing;
+using SkiaSharp;
 
 namespace NzbDrone.Core.MediaCover
 {
@@ -15,6 +13,9 @@ namespace NzbDrone.Core.MediaCover
 
     public class ImageResizer : IImageResizer
     {
+        // Thumbnails don't need super high quality
+        private const int JpegQuality = 92;
+
         private readonly IDiskProvider _diskProvider;
         private readonly bool _enabled;
 
@@ -23,12 +24,6 @@ namespace NzbDrone.Core.MediaCover
             _diskProvider = diskProvider;
 
             _enabled = true;
-
-            // Thumbnails don't need super high quality
-            SixLabors.ImageSharp.Configuration.Default.ImageFormatsManager.SetEncoder(JpegFormat.Instance, new JpegEncoder
-            {
-                Quality = 92
-            });
         }
 
         public void Resize(string source, string destination, int height)
@@ -40,17 +35,26 @@ namespace NzbDrone.Core.MediaCover
 
             try
             {
-                // Covers are plain JPEG/PNG/WebP files. TIFF is rejected and metadata (ICC profiles, EXIF) is not parsed,
-                // which keeps the decoders behind the suppressed ImageSharp advisories out of reach (see Directory.Build.props).
-                var format = Image.DetectFormat(source);
-                if (string.Equals(format?.Name, "TIFF", StringComparison.OrdinalIgnoreCase))
+                var format = GetEncodedFormat(destination);
+
+                using var original = SKBitmap.Decode(source);
+                if (original == null || original.Height <= 0)
                 {
-                    throw new NotSupportedException("TIFF images are not resized: " + source);
+                    throw new InvalidDataException("Unsupported or corrupt image: " + source);
                 }
 
-                using var image = Image.Load(new DecoderOptions { SkipMetadata = true }, source);
-                image.Mutate(x => x.Resize(0, height));
-                image.Save(destination);
+                var width = Math.Max(1, (int)Math.Round(original.Width * (double)height / original.Height));
+
+                using var resized = original.Resize(new SKImageInfo(width, height), new SKSamplingOptions(SKCubicResampler.Mitchell));
+                if (resized == null)
+                {
+                    throw new InvalidOperationException("Could not resize image: " + source);
+                }
+
+                using var image = SKImage.FromBitmap(resized);
+                using var data = image.Encode(format, JpegQuality);
+                using var output = File.Create(destination);
+                data.SaveTo(output);
             }
             catch
             {
@@ -60,6 +64,21 @@ namespace NzbDrone.Core.MediaCover
                 }
 
                 throw;
+            }
+        }
+
+        // Covers are JPEG or PNG. Anything else throws, and MediaCoverService then serves the full size image.
+        private static SKEncodedImageFormat GetEncodedFormat(string destination)
+        {
+            switch (Path.GetExtension(destination).ToLowerInvariant())
+            {
+                case ".jpg":
+                case ".jpeg":
+                    return SKEncodedImageFormat.Jpeg;
+                case ".png":
+                    return SKEncodedImageFormat.Png;
+                default:
+                    throw new NotSupportedException("Cannot write thumbnails as " + Path.GetExtension(destination) + ": " + destination);
             }
         }
     }
