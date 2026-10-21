@@ -1,6 +1,8 @@
+using System;
 using NzbDrone.Common.Disk;
 using NzbDrone.Common.EnvironmentInfo;
 using SixLabors.ImageSharp;
+using SixLabors.ImageSharp.Formats;
 using SixLabors.ImageSharp.Formats.Jpeg;
 using SixLabors.ImageSharp.Processing;
 
@@ -38,7 +40,15 @@ namespace NzbDrone.Core.MediaCover
 
             try
             {
-                using var image = Image.Load(source);
+                // Covers are plain JPEG/PNG/WebP files. TIFF is rejected and metadata (ICC profiles, EXIF) is not parsed,
+                // which keeps the decoders behind the suppressed ImageSharp advisories out of reach (see Directory.Build.props).
+                var format = Image.DetectFormat(source);
+                if (string.Equals(format?.Name, "TIFF", StringComparison.OrdinalIgnoreCase))
+                {
+                    throw new NotSupportedException("TIFF images are not resized: " + source);
+                }
+
+                using var image = Image.Load(new DecoderOptions { SkipMetadata = true }, source);
                 image.Mutate(x => x.Resize(0, height));
                 image.Save(destination);
             }
