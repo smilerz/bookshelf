@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using FizzWare.NBuilder;
 using FluentAssertions;
 using Moq;
@@ -65,6 +66,81 @@ namespace NzbDrone.Core.Test.MediaFiles
                               }
                           }))
                 .Build();
+        }
+
+        [Test]
+        public void should_only_recycle_the_old_file_after_the_new_file_is_in_place()
+        {
+            GivenSingleTrackWithSingleTrackFile();
+            var steps = new List<string>();
+
+            Mocker.GetMock<IDiskProvider>()
+                .Setup(c => c.MoveFile(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<bool>()))
+                .Callback<string, string, bool>((s, d, o) => steps.Add("aside"));
+
+            Mocker.GetMock<IMoveBookFiles>()
+                .Setup(c => c.MoveBookFile(It.IsAny<BookFile>(), It.IsAny<LocalBook>()))
+                .Callback<BookFile, LocalBook>((b, l) => steps.Add("place"))
+                .Returns(new BookFile());
+
+            Mocker.GetMock<IRecycleBinProvider>()
+                .Setup(c => c.DeleteFile(It.IsAny<string>(), It.IsAny<string>()))
+                .Callback<string, string>((p, s) => steps.Add("recycle"));
+
+            Mocker.GetMock<IMediaFileService>()
+                .Setup(c => c.Delete(It.IsAny<BookFile>(), DeleteMediaFileReason.Upgrade))
+                .Callback<BookFile, DeleteMediaFileReason>((f, r) => steps.Add("database"));
+
+            Subject.UpgradeBookFile(_trackFile, _localTrack);
+
+            steps.Should().Equal("aside", "place", "recycle", "database");
+        }
+
+        [Test]
+        public void should_put_the_old_file_back_and_delete_nothing_if_the_new_file_cannot_be_placed()
+        {
+            GivenSingleTrackWithSingleTrackFile();
+            var oldPath = _localTrack.Book.BookFiles.Value.Single().Path;
+            var onDisk = new HashSet<string> { oldPath };
+
+            Mocker.GetMock<IDiskProvider>()
+                .Setup(c => c.FileExists(It.IsAny<string>()))
+                .Returns<string>(p => onDisk.Contains(p));
+
+            Mocker.GetMock<IDiskProvider>()
+                .Setup(c => c.MoveFile(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<bool>()))
+                .Callback<string, string, bool>((s, d, o) =>
+                {
+                    onDisk.Remove(s);
+                    onDisk.Add(d);
+                });
+
+            Mocker.GetMock<IMoveBookFiles>()
+                .Setup(c => c.MoveBookFile(It.IsAny<BookFile>(), It.IsAny<LocalBook>()))
+                .Throws(new IOException("disk full"));
+
+            Assert.Throws<IOException>(() => Subject.UpgradeBookFile(_trackFile, _localTrack));
+
+            onDisk.Should().BeEquivalentTo(new[] { oldPath });
+
+            Mocker.GetMock<IRecycleBinProvider>().Verify(v => v.DeleteFile(It.IsAny<string>(), It.IsAny<string>()), Times.Never());
+            Mocker.GetMock<IMediaFileService>().Verify(v => v.Delete(It.IsAny<BookFile>(), DeleteMediaFileReason.Upgrade), Times.Never());
+        }
+
+        [Test]
+        public void should_still_succeed_when_the_old_file_cannot_be_recycled_after_the_new_file_is_in_place()
+        {
+            GivenSingleTrackWithSingleTrackFile();
+
+            Mocker.GetMock<IRecycleBinProvider>()
+                .Setup(c => c.DeleteFile(It.IsAny<string>(), It.IsAny<string>()))
+                .Throws(new RecycleBinException("recycle bin is full"));
+
+            var result = Subject.UpgradeBookFile(_trackFile, _localTrack);
+
+            result.OldFiles.Should().HaveCount(1);
+            Mocker.GetMock<IMediaFileService>().Verify(v => v.Delete(It.IsAny<BookFile>(), DeleteMediaFileReason.Upgrade), Times.Once());
+            ExceptionVerification.ExpectedWarns(1);
         }
 
         [Test]
