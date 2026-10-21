@@ -1,7 +1,7 @@
 {
   "version": 2,
   "dependencies": {
-    "net6.0": {
+    "net10.0": {
       "Dapper": {
         "type": "Direct",
         "requested": "[2.0.151, )",
@@ -1083,7 +1083,7 @@
         "contentHash": "+RJT4qaekpZ7DDLhf+LTjq+E48jieKiY9ulJ+BoxKmZblIJfIJT8Ufcaa/clQqnYvWs8jugfGSMu8ylS0caG0w=="
       }
     },
-    "net6.0/linux-musl-arm64": {
+    "net10.0/linux-musl-arm64": {
       "Microsoft.Data.SqlClient": {
         "type": "Direct",
         "requested": "[2.1.7, )",
@@ -1342,7 +1342,7 @@
         }
       }
     },
-    "net6.0/linux-musl-x64": {
+    "net10.0/linux-musl-x64": {
       "Microsoft.Data.SqlClient": {
         "type": "Direct",
         "requested": "[2.1.7, )",
@@ -1601,7 +1601,7 @@
         }
       }
     },
-    "net6.0/linux-x64": {
+    "net10.0/linux-x64": {
       "Microsoft.Data.SqlClient": {
         "type": "Direct",
         "requested": "[2.1.7, )",
@@ -1860,7 +1860,7 @@
         }
       }
     },
-    "net6.0/osx-x64": {
+    "net10.0/osx-x64": {
       "Microsoft.Data.SqlClient": {
         "type": "Direct",
         "requested": "[2.1.7, )",

@@ -2,6 +2,11 @@
   <!-- Common to all Readarr Projects -->
   <PropertyGroup>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <!-- C# 14 binds array.Contains(x) in expression trees to MemoryExtensions.Contains, which the SQL where builders
+         (WhereBuilderSqlite and WhereBuilderPostgres) do not understand. Stay on C# 13 until they handle both forms. -->
+    <LangVersion>13.0</LangVersion>
+    <!-- MSB3026 is a retry notice from parallel project builds copying the same file; it is not a defect. -->
+    <WarningsNotAsErrors>$(WarningsNotAsErrors);MSB3026</WarningsNotAsErrors>
     <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
     <ErrorOnDuplicatePublishOutputFiles>false</ErrorOnDuplicatePublishOutputFiles>
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>

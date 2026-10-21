@@ -1,7 +1,7 @@
 {
   "version": 2,
   "dependencies": {
-    "net6.0": {
+    "net10.0": {
       "Microsoft.SourceLink.GitHub": {
         "type": "Direct",
         "requested": "[1.1.1, )",
@@ -588,7 +588,7 @@
         "contentHash": "+RJT4qaekpZ7DDLhf+LTjq+E48jieKiY9ulJ+BoxKmZblIJfIJT8Ufcaa/clQqnYvWs8jugfGSMu8ylS0caG0w=="
       }
     },
-    "net6.0/linux-musl-arm64": {
+    "net10.0/linux-musl-arm64": {
       "Mono.Posix.NETStandard": {
         "type": "Direct",
         "requested": "[5.20.1.34-servarr22, )",
@@ -800,7 +800,7 @@
         }
       }
     },
-    "net6.0/linux-musl-x64": {
+    "net10.0/linux-musl-x64": {
       "Mono.Posix.NETStandard": {
         "type": "Direct",
         "requested": "[5.20.1.34-servarr22, )",
@@ -1012,7 +1012,7 @@
         }
       }
     },
-    "net6.0/linux-x64": {
+    "net10.0/linux-x64": {
       "Mono.Posix.NETStandard": {
         "type": "Direct",
         "requested": "[5.20.1.34-servarr22, )",
@@ -1224,7 +1224,7 @@
         }
       }
     },
-    "net6.0/osx-x64": {
+    "net10.0/osx-x64": {
       "Mono.Posix.NETStandard": {
         "type": "Direct",
         "requested": "[5.20.1.34-servarr22, )",
