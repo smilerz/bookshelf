@@ -40,6 +40,7 @@ namespace NzbDrone.Core.Test.HealthCheck.Checks
         [TestCase("nightly")]
         [TestCase("Nightly")]
         [TestCase("develop")]
+        [TestCase("integration")]
         [TestCase("Develop")]
         public void should_return_no_warning_when_branch_valid(string branch)
         {
