@@ -315,7 +315,15 @@ namespace NzbDrone.Core.MediaFiles.BookImport
             // now that trackfiles have been inserted and ids generated, publish the import events
             foreach (var trackImportedEvent in trackImportedEvents)
             {
-                _eventAggregator.PublishEvent(trackImportedEvent);
+                try
+                {
+                    _eventAggregator.PublishEvent(trackImportedEvent);
+                }
+                catch (Exception e)
+                {
+                    // One failing event must not stop the ones after it.
+                    _logger.Warn(e, "Couldn't publish the import event for {0}", trackImportedEvent.BookInfo);
+                }
             }
 
             var bookImports = importResults.Where(e => e.ImportDecision.Item.Book != null)
@@ -323,19 +331,32 @@ namespace NzbDrone.Core.MediaFiles.BookImport
 
             foreach (var bookImport in bookImports)
             {
-                var book = bookImport.First().ImportDecision.Item.Book;
-                var edition = book.Editions.Value.Single(x => x.Monitored);
-                var author = bookImport.First().ImportDecision.Item.Author;
-
-                if (bookImport.Where(e => e.Errors.Count == 0).ToList().Count > 0 && author != null && book != null)
+                try
                 {
-                    _eventAggregator.PublishEvent(new BookImportedEvent(
-                        author,
-                        book,
-                        allImportedTrackFiles.Where(s => s.EditionId == edition.Id).ToList(),
-                        allOldTrackFiles.Where(s => s.EditionId == edition.Id).ToList(),
-                        replaceExisting,
-                        downloadClientItem));
+                    var book = bookImport.First().ImportDecision.Item.Book;
+                    var author = bookImport.First().ImportDecision.Item.Author;
+                    var imported = bookImport.Where(e => e.Errors.Count == 0).ToList();
+
+                    if (imported.Count > 0 && author != null && book != null)
+                    {
+                        // The files were attached to the edition each decision identified, so use those editions. Looking for the book's
+                        // monitored edition instead (Single) threw when none was monitored and ended the events of every later book in
+                        // the batch, so scripts and notifications never ran for them.
+                        var editionIds = imported.Select(e => e.ImportDecision.Item.Edition?.Id ?? 0).ToHashSet();
+
+                        _eventAggregator.PublishEvent(new BookImportedEvent(
+                            author,
+                            book,
+                            allImportedTrackFiles.Where(s => editionIds.Contains(s.EditionId)).ToList(),
+                            allOldTrackFiles.Where(s => editionIds.Contains(s.EditionId)).ToList(),
+                            replaceExisting,
+                            downloadClientItem));
+                    }
+                }
+                catch (Exception e)
+                {
+                    // One book's event must never stop the events of the books after it.
+                    _logger.Warn(e, "Couldn't publish the import event for book {0}", bookImport.Key);
                 }
             }
 
