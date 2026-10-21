@@ -57,6 +57,35 @@ namespace NzbDrone.App.Test
         }
 
         [Test]
+        public void diagnose_how_the_container_answers_is_this_a_service()
+        {
+            var isService = _container.GetService(typeof(IServiceProviderIsService)) as IServiceProviderIsService;
+            var parts = new List<string> { "provider=" + _container.GetType().Name, "isServiceAvailable=" + (isService != null) };
+
+            var probes = new Dictionary<string, System.Type>
+            {
+                ["CommandResource"] = typeof(Readarr.Api.V1.Commands.CommandResource),
+                ["TagResource"] = typeof(Readarr.Api.V1.Tags.TagResource),
+                ["ListOfTagResource"] = typeof(List<Readarr.Api.V1.Tags.TagResource>),
+                ["ManualImportUpdateList"] = typeof(List<Readarr.Api.V1.ManualImport.ManualImportUpdateResource>),
+                ["string"] = typeof(string),
+                ["int"] = typeof(int),
+                ["unregisteredPlainClass"] = typeof(System.Text.StringBuilder),
+                ["IConfigFileProvider"] = typeof(NzbDrone.Core.Configuration.IConfigFileProvider)
+            };
+
+            foreach (var probe in probes)
+            {
+                var answer = isService == null ? "n/a" : isService.IsService(probe.Value).ToString();
+                parts.Add(probe.Key + ".IsService=" + answer);
+            }
+
+            parts.Add("GetService(CommandResource)=" + (_container.GetService(typeof(Readarr.Api.V1.Commands.CommandResource)) != null ? "non-null" : "null"));
+
+            Assert.Fail("DIAGNOSIS: " + string.Join(" | ", parts));
+        }
+
+        [Test]
         public void should_be_able_to_resolve_indexers()
         {
             _container.GetRequiredService<IEnumerable<IIndexer>>().Should().NotBeEmpty();
