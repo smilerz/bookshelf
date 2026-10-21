@@ -88,7 +88,23 @@ namespace NzbDrone.Core.Download
             trackedDownload.State = TrackedDownloadState.Importing;
 
             var outputPath = trackedDownload.ImportItem.OutputPath.FullPath;
-            var importResults = _downloadedTracksImportService.ProcessPath(outputPath, ImportMode.Auto, trackedDownload.RemoteBook?.Author, trackedDownload.DownloadItem);
+            List<ImportResult> importResults;
+
+            try
+            {
+                importResults = _downloadedTracksImportService.ProcessPath(outputPath, ImportMode.Auto, trackedDownload.RemoteBook?.Author, trackedDownload.DownloadItem);
+            }
+            catch (Exception e)
+            {
+                // An unexpected failure used to leave the download in 'Importing' for good, with no message saying why. Show it as a
+                // failed import with the reason, like any other import that could not finish.
+                _logger.Warn(e, "Import failed for {0}", trackedDownload.DownloadItem.Title);
+
+                trackedDownload.State = TrackedDownloadState.ImportFailed;
+                trackedDownload.Warn("Import failed: {0}", e.Message);
+                _eventAggregator.PublishEvent(new BookImportIncompleteEvent(trackedDownload));
+                return;
+            }
 
             if (importResults.Empty())
             {
