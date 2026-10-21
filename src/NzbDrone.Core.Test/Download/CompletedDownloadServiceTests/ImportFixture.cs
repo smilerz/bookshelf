@@ -369,6 +369,42 @@ namespace NzbDrone.Core.Test.Download.CompletedDownloadServiceTests
         }
 
         [Test]
+        public void should_mark_as_imported_if_all_books_were_imported_before_for_a_download_bookshelf_did_not_grab()
+        {
+            _trackedDownload.RemoteBook = null;
+
+            Mocker.GetMock<IDownloadedBooksImportService>()
+                .Setup(v => v.ProcessPath(It.IsAny<string>(), It.IsAny<ImportMode>(), It.IsAny<Author>(), It.IsAny<DownloadClientItem>()))
+                .Returns(new List<ImportResult>
+                {
+                    new ImportResult(
+                        new ImportDecision<LocalBook>(
+                            new LocalBook { Path = @"C:\TestPath\Droned.S01E01.mkv", Author = _author }), "Already imported")
+                });
+
+            var history = Builder<EntityHistory>.CreateListOfSize(1)
+                .All()
+                .With(x => x.EventType = EntityHistoryEventType.BookFileImported)
+                .With(x => x.AuthorId = 1)
+                .BuildList();
+
+            Mocker.GetMock<IHistoryService>()
+                  .Setup(s => s.FindByDownloadId(It.IsAny<string>()))
+                  .Returns(history);
+
+            Mocker.GetMock<ITrackedDownloadAlreadyImported>()
+                  .Setup(s => s.IsImported(It.IsAny<TrackedDownload>(), It.IsAny<List<EntityHistory>>()))
+                  .Returns(true);
+
+            Subject.Import(_trackedDownload);
+
+            _trackedDownload.State.Should().Be(TrackedDownloadState.Imported);
+
+            Mocker.GetMock<IEventAggregator>()
+                  .Verify(v => v.PublishEvent(It.IsAny<DownloadCompletedEvent>()), Times.Once());
+        }
+
+        [Test]
         public void should_mark_as_imported_if_the_download_can_be_tracked_using_the_source_seriesid()
         {
             GivenABadlyNamedDownload();
