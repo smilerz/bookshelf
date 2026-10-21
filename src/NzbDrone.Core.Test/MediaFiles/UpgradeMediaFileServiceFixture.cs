@@ -159,6 +159,43 @@ namespace NzbDrone.Core.Test.MediaFiles
         }
 
         [Test]
+        public void should_import_a_book_whose_files_were_never_loaded()
+        {
+            _localTrack.Book = Builder<Book>.CreateNew().With(e => e.BookFiles = null).Build();
+
+            Mocker.GetMock<IMoveBookFiles>()
+                .Setup(c => c.MoveBookFile(It.IsAny<BookFile>(), It.IsAny<LocalBook>()))
+                .Returns(new BookFile());
+
+            var result = Subject.UpgradeBookFile(_trackFile, _localTrack);
+
+            result.OldFiles.Should().BeEmpty();
+            Mocker.GetMock<IMediaFileService>()
+                .Verify(v => v.GetFilesByBook(_localTrack.Book.Id), Times.Once());
+        }
+
+        [Test]
+        public void should_replace_the_files_found_in_the_database_when_the_book_has_none_loaded()
+        {
+            _localTrack.Book = Builder<Book>.CreateNew().With(e => e.BookFiles = null).Build();
+            var oldFile = new BookFile { Id = 7, Path = Path.Combine(_rootPath, "old.epub") };
+
+            Mocker.GetMock<IMediaFileService>()
+                .Setup(c => c.GetFilesByBook(_localTrack.Book.Id))
+                .Returns(new List<BookFile> { oldFile });
+
+            Mocker.GetMock<IMoveBookFiles>()
+                .Setup(c => c.MoveBookFile(It.IsAny<BookFile>(), It.IsAny<LocalBook>()))
+                .Returns(new BookFile());
+
+            var result = Subject.UpgradeBookFile(_trackFile, _localTrack);
+
+            result.OldFiles.Should().ContainSingle().Which.Id.Should().Be(7);
+            Mocker.GetMock<IMediaFileService>()
+                .Verify(v => v.Delete(oldFile, DeleteMediaFileReason.Upgrade), Times.Once());
+        }
+
+        [Test]
         public void should_report_a_missing_root_folder_when_the_author_has_no_path()
         {
             GivenSingleTrackWithSingleTrackFile();
