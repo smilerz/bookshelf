@@ -94,7 +94,7 @@ namespace NzbDrone.Core.Books
                 catch (Exception ex)
                 {
                     // Could be a bad id from an import list
-                    _logger.Error(ex, "Failed to import id: {0} - {1}", a.ForeignBookId, a.Title);
+                    _logger.Error(ex, "Failed to add book {0} ({1}): {2}", a.ForeignBookId, a.Title ?? "no title yet", ex.Message);
                 }
             }
 
@@ -103,7 +103,8 @@ namespace NzbDrone.Core.Books
 
         private Book AddSkyhookData(Book newBook)
         {
-            var editionId = newBook.Editions.Value.Single(x => x.Monitored).ForeignEditionId;
+            // A book that comes from an import list often names no edition at all, so there may be nothing monitored yet.
+            var requestedEditionId = newBook.Editions.Value.FirstOrDefault(x => x.Monitored)?.ForeignEditionId;
 
             Tuple<string, Book, List<AuthorMetadata>> tuple = null;
             try
@@ -124,8 +125,25 @@ namespace NzbDrone.Core.Books
             newBook.Added = DateTime.UtcNow;
 
             newBook.Editions = tuple.Item2.Editions.Value;
+
+            // Monitor the edition the caller asked for when the metadata source has it, otherwise the one the source
+            // marks as the default, otherwise the first.
+            var chosen = newBook.Editions.Value.FirstOrDefault(x => requestedEditionId != null && x.ForeignEditionId == requestedEditionId)
+                         ?? newBook.Editions.Value.FirstOrDefault(x => x.Monitored)
+                         ?? newBook.Editions.Value.FirstOrDefault();
+
+            if (chosen == null)
+            {
+                _logger.Error("Book with Foreign Id {0} has no editions in the metadata source.", newBook.ForeignBookId);
+
+                throw new ValidationException(new List<ValidationFailure>
+                                              {
+                                                  new ValidationFailure("GoodreadsId", "A book with this ID has no editions", newBook.ForeignBookId)
+                                              });
+            }
+
             newBook.Editions.Value.ForEach(x => x.Monitored = false);
-            newBook.Editions.Value.Single(x => x.ForeignEditionId == editionId).Monitored = true;
+            chosen.Monitored = true;
 
             var metadata = tuple.Item3.FirstOrDefault(x => x.ForeignAuthorId == tuple.Item1);
             newBook.AuthorMetadata = metadata;
