@@ -299,13 +299,7 @@ class Queue extends Component {
               return !!(item && item.downloadClientHasPostImportCategory);
             })
           )}
-          canIgnore={isConfirmRemoveModalOpen && (
-            selectedIds.every((id) => {
-              const item = items.find((i) => i.id === id);
-
-              return !!(item && item.authorId && item.bookId);
-            })
-          )}
+          canIgnore={isConfirmRemoveModalOpen}
           pending={isConfirmRemoveModalOpen && (
             selectedIds.every((id) => {
               const item = items.find((i) => i.id === id);

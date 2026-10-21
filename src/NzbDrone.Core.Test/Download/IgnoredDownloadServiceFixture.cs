@@ -20,18 +20,18 @@ namespace NzbDrone.Core.Test.Download
         }
 
         [Test]
-        public void should_not_throw_for_a_download_that_was_never_matched_to_a_book()
+        public void should_ignore_a_download_that_was_never_matched_to_a_book()
         {
             var trackedDownload = new TrackedDownload { DownloadItem = Item(), RemoteBook = null };
 
-            Subject.IgnoreDownload(trackedDownload).Should().BeFalse();
+            Subject.IgnoreDownload(trackedDownload).Should().BeTrue();
 
             Mocker.GetMock<IEventAggregator>()
-                .Verify(v => v.PublishEvent(It.IsAny<DownloadIgnoredEvent>()), Times.Never());
+                .Verify(v => v.PublishEvent(It.Is<DownloadIgnoredEvent>(e => e.AuthorId == 0 && e.BookIds.Count == 0 && e.DownloadId == "abc")), Times.Once());
         }
 
         [Test]
-        public void should_not_ignore_a_download_without_books()
+        public void should_ignore_a_download_matched_to_an_author_but_no_books()
         {
             var trackedDownload = new TrackedDownload
             {
@@ -39,7 +39,10 @@ namespace NzbDrone.Core.Test.Download
                 RemoteBook = new RemoteBook { Author = new Author { Id = 1 }, Books = new List<Book>(), ParsedBookInfo = new ParsedBookInfo() }
             };
 
-            Subject.IgnoreDownload(trackedDownload).Should().BeFalse();
+            Subject.IgnoreDownload(trackedDownload).Should().BeTrue();
+
+            Mocker.GetMock<IEventAggregator>()
+                .Verify(v => v.PublishEvent(It.Is<DownloadIgnoredEvent>(e => e.AuthorId == 1 && e.BookIds.Count == 0)), Times.Once());
         }
 
         [Test]
