@@ -82,6 +82,74 @@ namespace NzbDrone.Core.Test.Download.TrackedDownloads
         }
 
         [Test]
+        public void should_track_a_finished_download_using_the_grabbed_release_name_not_the_imported_file_name()
+        {
+            Mocker.GetMock<IHistoryService>()
+                .Setup(s => s.FindByDownloadId(It.Is<string>(sr => sr == "35239")))
+                .Returns(new List<EntityHistory>()
+                {
+                    new EntityHistory()
+                    {
+                        DownloadId = "35239",
+                        EventType = EntityHistoryEventType.BookFileImported,
+                        SourceTitle = "Part--02",
+                        Date = new System.DateTime(2026, 10, 20),
+                        AuthorId = 5,
+                        BookId = 4,
+                    },
+                    new EntityHistory()
+                    {
+                        DownloadId = "35239",
+                        EventType = EntityHistoryEventType.Grabbed,
+                        SourceTitle = "Audio Author - Audio Book [2018 - FLAC]",
+                        Date = new System.DateTime(2026, 10, 19),
+                        AuthorId = 5,
+                        BookId = 4,
+                    }
+                });
+
+            var remoteBook = new RemoteBook
+            {
+                Author = new Author() { Id = 5 },
+                Books = new List<Book> { new Book { Id = 4 } },
+                ParsedBookInfo = new ParsedBookInfo()
+                {
+                    BookTitle = "Audio Book",
+                    AuthorName = "Audio Author"
+                }
+            };
+
+            Mocker.GetMock<IParsingService>()
+                  .Setup(s => s.Map(It.Is<ParsedBookInfo>(i => i.BookTitle == "Audio Book" && i.AuthorName == "Audio Author"), It.IsAny<int>(), It.IsAny<IEnumerable<int>>()))
+                  .Returns(remoteBook);
+
+            var client = new DownloadClientDefinition()
+            {
+                Id = 1,
+                Protocol = DownloadProtocol.Torrent
+            };
+
+            var item = new DownloadClientItem()
+            {
+                Title = "The torrent release folder",
+                DownloadId = "35239",
+                DownloadClientInfo = new DownloadClientItemClientInfo
+                {
+                    Protocol = client.Protocol,
+                    Id = client.Id,
+                    Name = client.Name
+                }
+            };
+
+            var trackedDownload = Subject.TrackDownload(client, item);
+
+            trackedDownload.Should().NotBeNull();
+            trackedDownload.RemoteBook.Should().NotBeNull();
+            trackedDownload.RemoteBook.Author.Id.Should().Be(5);
+            trackedDownload.RemoteBook.Books.First().Id.Should().Be(4);
+        }
+
+        [Test]
         public void should_unmap_tracked_download_if_book_deleted()
         {
             GivenDownloadHistory();
