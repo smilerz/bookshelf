@@ -5,9 +5,8 @@
     <!-- C# 14 binds array.Contains(x) in expression trees to MemoryExtensions.Contains, which the SQL where builders
          (WhereBuilderSqlite and WhereBuilderPostgres) do not understand. Stay on C# 13 until they handle both forms. -->
     <LangVersion>13.0</LangVersion>
-    <!-- Spike (issue #13): NuGet's vulnerability audit and package pruning are new in the .NET 10 SDK. Keep them as
-         warnings so the compiler errors of the upgrade are visible; the vulnerable packages are tracked separately. -->
-    <WarningsNotAsErrors>$(WarningsNotAsErrors);MSB3026;NU1510;NU1901;NU1902;NU1903;NU1904</WarningsNotAsErrors>
+    <!-- MSB3026 is a retry notice from parallel project builds copying the same file; it is not a defect. -->
+    <WarningsNotAsErrors>$(WarningsNotAsErrors);MSB3026</WarningsNotAsErrors>
     <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
     <ErrorOnDuplicatePublishOutputFiles>false</ErrorOnDuplicatePublishOutputFiles>
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>

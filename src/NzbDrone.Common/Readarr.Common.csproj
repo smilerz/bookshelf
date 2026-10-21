@@ -14,13 +14,10 @@
     <PackageReference Include="NLog" />
     <PackageReference Include="SharpZipLib" />
     <PackageReference Include="System.IO.Abstractions" />
-    <PackageReference Include="System.Text.Json" />
     <PackageReference Include="System.ValueTuple" />
     <PackageReference Include="System.Data.SQLite.Core.Servarr" />
-    <PackageReference Include="System.Runtime.Loader" />
     <PackageReference Include="System.Configuration.ConfigurationManager" />
     <PackageReference Include="System.ServiceProcess.ServiceController" />
-    <PackageReference Include="Microsoft.Win32.Registry" />
   </ItemGroup>
   <ItemGroup>
     <Compile Update="EnsureThat\Resources\ExceptionMessages.Designer.cs">
