@@ -163,32 +163,42 @@ namespace NzbDrone.Core.Download.TrackedDownloads
                         trackedDownload.RemoteBook?.Author == null ||
                         trackedDownload.RemoteBook.Books.Empty())
                     {
-                        // Try parsing the original source title and if that fails, try parsing it as a special
-                        var historyAuthor = firstHistoryItem.Author;
-                        var historyBooks = new List<Book> { firstHistoryItem.Book };
-
-                        parsedBookInfo = Parser.Parser.ParseBookTitle(firstHistoryItem.SourceTitle);
-
-                        if (parsedBookInfo != null)
+                        // The newest history item of a finished download is its import, whose source title is a file name. The release
+                        // name (and the author and book it was grabbed for) is on the grab, so try that first and the newest item second.
+                        foreach (var source in new[] { grabbedEvent, firstHistoryItem }.Where(x => x != null).Distinct())
                         {
-                            trackedDownload.RemoteBook = _parsingService.Map(parsedBookInfo,
-                                firstHistoryItem.AuthorId,
-                                historyItems.Where(v => v.EventType == EntityHistoryEventType.Grabbed).Select(h => h.BookId)
-                                    .Distinct());
-                        }
-                        else
-                        {
-                            parsedBookInfo =
-                                Parser.Parser.ParseBookTitleWithSearchCriteria(firstHistoryItem.SourceTitle,
-                                    historyAuthor,
-                                    historyBooks);
+                            // Try parsing the original source title and if that fails, try parsing it as a special
+                            var historyAuthor = source.Author;
+                            var historyBooks = new List<Book> { source.Book };
+
+                            parsedBookInfo = Parser.Parser.ParseBookTitle(source.SourceTitle);
 
                             if (parsedBookInfo != null)
                             {
                                 trackedDownload.RemoteBook = _parsingService.Map(parsedBookInfo,
-                                    firstHistoryItem.AuthorId,
+                                    source.AuthorId,
                                     historyItems.Where(v => v.EventType == EntityHistoryEventType.Grabbed).Select(h => h.BookId)
                                         .Distinct());
+                            }
+                            else
+                            {
+                                parsedBookInfo =
+                                    Parser.Parser.ParseBookTitleWithSearchCriteria(source.SourceTitle,
+                                        historyAuthor,
+                                        historyBooks);
+
+                                if (parsedBookInfo != null)
+                                {
+                                    trackedDownload.RemoteBook = _parsingService.Map(parsedBookInfo,
+                                        source.AuthorId,
+                                        historyItems.Where(v => v.EventType == EntityHistoryEventType.Grabbed).Select(h => h.BookId)
+                                            .Distinct());
+                                }
+                            }
+
+                            if (trackedDownload.RemoteBook?.Author != null && trackedDownload.RemoteBook.Books.Any())
+                            {
+                                break;
                             }
                         }
                     }
