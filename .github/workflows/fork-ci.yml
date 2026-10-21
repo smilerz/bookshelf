@@ -126,6 +126,43 @@ jobs:
             type=raw,value=integration
             type=sha,prefix=sha-,format=short
 
+      # Build the image once without pushing and start it. The unit tests run on a runner that has .NET installed, so they
+      # cannot notice an image whose app needs a runtime the image does not have (the .NET 10 upgrade shipped one: since
+      # .NET 8 a runtime identifier no longer implies a self-contained publish).
+      - name: Build the image for the smoke test
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc  # v7.4.0
+        with:
+          context: .
+          file: ./docker/Dockerfile
+          platforms: linux/amd64
+          load: true
+          push: false
+          tags: bookshelf-smoke:latest
+          build-args: |
+            GIT_BRANCH=${{ env.BUILD_SOURCEBRANCHNAME }}
+            COMMIT_HASH=${{ github.event.pull_request.head.sha || github.sha }}
+            BUILD_DATE=${{ env.DATE }}
+            METADATA_URL=https://hardcover.bookinfo.pro
+            HARDCOVER=true
+
+      - name: Smoke test the image
+        shell: bash
+        run: |
+          docker run -d --name smoke -p 127.0.0.1:8787:8787 -e PUID=1000 -e PGID=1000 \
+            -e METADATA_URL=http://127.0.0.1:1 bookshelf-smoke:latest
+          code=000
+          for i in $(seq 1 60); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8787/ping || true)
+            [ "$code" = "200" ] && break
+            sleep 2
+          done
+          echo "ping answered: $code"
+          docker logs smoke 2>&1 | tail -40
+          if docker logs smoke 2>&1 | grep -q "You must install .NET to run this application"; then
+            echo "The image does not contain the runtime its app needs"; exit 1
+          fi
+          [ "$code" = "200" ]
+
       - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f  # v4.6.0
         if: ${{ github.event_name == 'push' }}
         with:
