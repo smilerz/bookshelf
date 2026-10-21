@@ -59,8 +59,11 @@ namespace NzbDrone.App.Test
         [Test]
         public void diagnose_how_the_container_answers_is_this_a_service()
         {
-            var isService = _container.GetService(typeof(IServiceProviderIsService)) as IServiceProviderIsService;
-            var parts = new List<string> { "provider=" + _container.GetType().Name, "isServiceAvailable=" + (isService != null) };
+            // The provider ASP.NET sees in the real host: DryIocServiceProviderFactory wrapped around a container with the app rules.
+            var factory = new DryIocServiceProviderFactory(new Container(rules => rules.WithNzbDroneRules()));
+            var hostProvider = factory.CreateServiceProvider(factory.CreateBuilder(new ServiceCollection()));
+            var isService = hostProvider.GetService(typeof(IServiceProviderIsService)) as IServiceProviderIsService;
+            var parts = new List<string> { "hostProvider=" + hostProvider.GetType().Name, "isServiceAvailable=" + (isService != null) };
 
             var probes = new Dictionary<string, System.Type>
             {
@@ -80,7 +83,7 @@ namespace NzbDrone.App.Test
                 parts.Add(probe.Key + ".IsService=" + answer);
             }
 
-            parts.Add("GetService(CommandResource)=" + (_container.GetService(typeof(Readarr.Api.V1.Commands.CommandResource)) != null ? "non-null" : "null"));
+            parts.Add("hostProvider.GetService(CommandResource)=" + (hostProvider.GetService(typeof(Readarr.Api.V1.Commands.CommandResource)) != null ? "non-null" : "null"));
 
             Assert.Fail("DIAGNOSIS: " + string.Join(" | ", parts));
         }
