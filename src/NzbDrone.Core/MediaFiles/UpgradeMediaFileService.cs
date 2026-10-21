@@ -50,6 +50,7 @@ namespace NzbDrone.Core.MediaFiles
         public BookFileMoveResult UpgradeBookFile(BookFile bookFile, LocalBook localBook, bool copyOnly = false)
         {
             var moveFileResult = new BookFileMoveResult();
+
             // A book that was only just added has no lazy loader for its files (the import failed here with a NullReferenceException),
             // so read them from the database instead of assuming they were loaded.
             var existingFiles = localBook.Book.BookFiles?.Value
