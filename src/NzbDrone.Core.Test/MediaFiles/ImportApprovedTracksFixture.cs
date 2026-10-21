@@ -135,6 +135,69 @@ namespace NzbDrone.Core.Test.MediaFiles
         }
 
         [Test]
+        public void should_publish_BookImportedEvent_for_every_book_even_when_one_has_no_monitored_edition()
+        {
+            // The first book's edition is not monitored: this used to throw while publishing and end the events of every later book.
+            var first = _approvedDecisions.First();
+            first.Item.Edition.Monitored = false;
+
+            var otherEdition = Builder<Edition>.CreateNew()
+                .With(e => e.Id = 50)
+                .With(e => e.Monitored = true)
+                .Build();
+
+            var otherBook = Builder<Book>.CreateNew()
+                .With(b => b.Id = 40)
+                .With(b => b.ForeignBookId = "other-book")
+                .With(b => b.Author = first.Item.Author)
+                .Build();
+
+            otherBook.Editions = new List<Edition> { otherEdition };
+
+            Mocker.GetMock<IEditionService>()
+                .Setup(s => s.SetMonitored(otherEdition))
+                .Returns(new List<Edition> { otherEdition });
+
+            var second = new ImportDecision<LocalBook>(
+                new LocalBook
+                {
+                    Author = first.Item.Author,
+                    Book = otherBook,
+                    Edition = otherEdition,
+                    Part = 1,
+                    Path = Path.Combine(first.Item.Author.Path, "Alien Ant Farm - 02 - Other.mp3"),
+                    Quality = new QualityModel(Quality.MP3),
+                    FileTrackInfo = new ParsedTrackInfo
+                    {
+                        ReleaseGroup = "DRONE"
+                    }
+                });
+
+            var results = Subject.Import(new List<ImportDecision<LocalBook>> { first, second }, true);
+
+            results.Should().HaveCount(2);
+            results.Should().OnlyContain(r => r.Result == ImportResultType.Imported);
+
+            Mocker.GetMock<IEventAggregator>()
+                .Verify(v => v.PublishEvent(It.IsAny<BookImportedEvent>()), Times.Exactly(2));
+        }
+
+        [Test]
+        public void should_include_only_the_files_of_the_imported_edition_in_the_BookImportedEvent()
+        {
+            BookImportedEvent published = null;
+            Mocker.GetMock<IEventAggregator>()
+                .Setup(v => v.PublishEvent(It.IsAny<BookImportedEvent>()))
+                .Callback<BookImportedEvent>(e => published = e);
+
+            Subject.Import(new List<ImportDecision<LocalBook>> { _approvedDecisions.First() }, true);
+
+            published.Should().NotBeNull();
+            published.ImportedBooks.Should().HaveCount(1);
+            published.ImportedBooks.Single().EditionId.Should().Be(_approvedDecisions.First().Item.Edition.Id);
+        }
+
+        [Test]
         public void should_move_new_downloads()
         {
             Subject.Import(new List<ImportDecision<LocalBook>> { _approvedDecisions.First() }, true);
