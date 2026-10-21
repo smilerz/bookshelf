@@ -177,7 +177,7 @@ namespace NzbDrone.Core.Test.MusicTests
             var added = Subject.AddBooks(new List<Book> { ListBook("bad"), ListBook("good") });
 
             added.Should().HaveCount(1);
-            added[0].ForeignBookId.Should().Be("good");
+            Mocker.GetMock<IBookService>().Verify(s => s.AddBook(It.IsAny<Book>(), true), Times.Once());
             ExceptionVerification.ExpectedErrors(2);
         }
 
