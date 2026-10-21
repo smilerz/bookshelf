@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Linq;
 using NLog;
 using NzbDrone.Common.Extensions;
@@ -26,8 +27,8 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Specifications
         {
             if (downloadClientItem == null)
             {
-                _logger.Debug("No download client information is available, skipping");
-                return Decision.Accept();
+                // Manual import and drop-folder imports carry no download id, so the download cannot be compared. Compare the files instead.
+                return CheckFiles(localBookRelease);
             }
 
             var bookRelease = localBookRelease.Edition;
@@ -58,6 +59,60 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Specifications
             {
                 _logger.Debug("Book previously imported at {0}", lastImported.Date);
                 return Decision.Reject("Book already imported at {0}", lastImported.Date);
+            }
+
+            return Decision.Accept();
+        }
+
+        private Decision CheckFiles(LocalEdition localBookRelease)
+        {
+            var edition = localBookRelease.Edition;
+
+            if (edition == null || localBookRelease.LocalBooks == null)
+            {
+                return Decision.Accept();
+            }
+
+            // Files already in the library being re-linked are not new imports.
+            var incoming = localBookRelease.LocalBooks.Where(x => !x.ExistingFile).ToList();
+
+            if (!incoming.Any())
+            {
+                return Decision.Accept();
+            }
+
+            // History records the path each import came from, so the same source file imported again can be recognised exactly.
+            var imports = _historyService.GetByBook(edition.BookId, EntityHistoryEventType.BookFileImported) ?? new List<EntityHistory>();
+
+            foreach (var localBook in incoming)
+            {
+                var earlier = imports.FirstOrDefault(h => h.Data != null &&
+                                                           h.Data.TryGetValue("DroppedPath", out var dropped) &&
+                                                           dropped.IsNotNullOrWhiteSpace() &&
+                                                           dropped.PathEquals(localBook.Path));
+
+                if (earlier != null)
+                {
+                    _logger.Debug("{0} was already imported at {1}", localBook.Path, earlier.Date);
+                    return Decision.Reject("Already imported at {0}", earlier.Date);
+                }
+            }
+
+            // A library file of the same size for this book is almost certainly the same file.
+            var existing = edition.BookFiles?.Value;
+
+            if (existing != null && existing.Any())
+            {
+                foreach (var localBook in incoming)
+                {
+                    var same = existing.FirstOrDefault(f => f.Size == localBook.Size);
+
+                    if (same != null)
+                    {
+                        _logger.Debug("{0} has the same size as {1}", localBook.Path, same.Path);
+                        return Decision.Reject("A file of the same size is already in the library: {0}", same.Path);
+                    }
+                }
             }
 
             return Decision.Accept();
