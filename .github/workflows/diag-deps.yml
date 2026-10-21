@@ -21,7 +21,7 @@ jobs:
         with:
           dotnet-version: "10.0.x"
       - name: Restore without failing on audit warnings
-        run: dotnet restore src/Readarr.sln -p:TreatWarningsAsErrors=false -p:NuGetAudit=true
+        run: dotnet restore src/Readarr.sln -p:TreatWarningsAsErrors=false -p:NuGetAudit=true -p:NoWarn=NU1605
       - name: Vulnerable packages, direct and transitive
         run: dotnet list src/Readarr.sln package --vulnerable --include-transitive 2>&1 | grep -v "^\s*$" | tee vuln.txt | head -150
       - name: Outdated direct packages
