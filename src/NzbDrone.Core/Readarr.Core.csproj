@@ -6,6 +6,10 @@
     <PackageReference Include="Dapper" />
     <PackageReference Include="Diacritical.Net" />
     <PackageReference Include="LazyCache" />
+    <!-- Not used by any code. It is a version OVERRIDE: the migration library depends on Microsoft.Data.SqlClient 2.1.2
+         (known high severity vulnerability) and, through it, on old Microsoft.IdentityModel libraries. Do not remove
+         while that dependency exists; keep the version current. -->
+    <PackageReference Include="Microsoft.Data.SqlClient" />
     <PackageReference Include="Polly" />
     <PackageReference Include="Microsoft.Extensions.Caching.Memory" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" />
