@@ -8,6 +8,7 @@ using NzbDrone.Common.Disk;
 using NzbDrone.Core.Books;
 using NzbDrone.Core.Datastore;
 using NzbDrone.Core.MediaFiles;
+using NzbDrone.Core.MediaFiles.BookImport;
 using NzbDrone.Core.Parser.Model;
 using NzbDrone.Core.RootFolders;
 using NzbDrone.Core.Test.Framework;
@@ -64,6 +65,33 @@ namespace NzbDrone.Core.Test.MediaFiles
                               }
                           }))
                 .Build();
+        }
+
+        [Test]
+        public void should_report_a_missing_root_folder_when_no_root_folder_contains_the_author()
+        {
+            GivenSingleTrackWithSingleTrackFile();
+
+            Mocker.GetMock<IRootFolderService>()
+                .Setup(c => c.GetBestRootFolder(It.IsAny<string>()))
+                .Returns((RootFolder)null);
+
+            Assert.Throws<RootFolderNotFoundException>(() => Subject.UpgradeBookFile(_trackFile, _localTrack));
+
+            Mocker.GetMock<IMediaFileService>()
+                .Verify(v => v.Delete(It.IsAny<BookFile>(), DeleteMediaFileReason.Upgrade), Times.Never());
+        }
+
+        [Test]
+        public void should_report_a_missing_root_folder_when_the_author_has_no_path()
+        {
+            GivenSingleTrackWithSingleTrackFile();
+            _localTrack.Author = new Author { Path = null };
+
+            Assert.Throws<RootFolderNotFoundException>(() => Subject.UpgradeBookFile(_trackFile, _localTrack));
+
+            Mocker.GetMock<IMediaFileService>()
+                .Verify(v => v.Delete(It.IsAny<BookFile>(), DeleteMediaFileReason.Upgrade), Times.Never());
         }
 
         [Test]

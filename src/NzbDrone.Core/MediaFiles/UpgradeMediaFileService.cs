@@ -49,8 +49,21 @@ namespace NzbDrone.Core.MediaFiles
             var moveFileResult = new BookFileMoveResult();
             var existingFiles = localBook.Book.BookFiles.Value;
 
+            // An author without a folder, or one whose folder is not inside any root folder, cannot take the file. Report it as a
+            // missing root folder (the import handles that case and says so) instead of failing with a NullReferenceException.
+            if (localBook.Author == null || localBook.Author.Path.IsNullOrWhiteSpace())
+            {
+                throw new RootFolderNotFoundException("The author has no folder, so the book cannot be imported.");
+            }
+
             var rootFolderPath = _diskProvider.GetParentFolder(localBook.Author.Path);
             var rootFolder = _rootFolderService.GetBestRootFolder(rootFolderPath);
+
+            if (rootFolder == null)
+            {
+                throw new RootFolderNotFoundException($"No root folder contains '{rootFolderPath}'.");
+            }
+
             var isCalibre = rootFolder.IsCalibreLibrary && rootFolder.CalibreSettings != null;
 
             var settings = rootFolder.CalibreSettings;
