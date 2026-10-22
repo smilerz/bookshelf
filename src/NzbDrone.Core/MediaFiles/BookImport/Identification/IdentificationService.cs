@@ -6,6 +6,7 @@ using System.Linq;
 using NLog;
 using NzbDrone.Common.Extensions;
 using NzbDrone.Common.Instrumentation.Extensions;
+using NzbDrone.Core.Books;
 using NzbDrone.Core.MediaFiles.BookImport.Aggregation;
 using NzbDrone.Core.Parser.Model;
 
@@ -220,6 +221,8 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
             var bestDistance = localBookRelease.Edition != null ? localBookRelease.Distance.NormalizedDistance() : 1.0;
             seenCandidate = false;
 
+            var evaluated = new List<(Edition Release, Distance Distance, List<LocalBook> ExtraTracks)>();
+
             foreach (var candidateRelease in candidateReleases)
             {
                 seenCandidate = true;
@@ -241,17 +244,34 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
                               currDistance,
                               bestDistance,
                               rwatch.ElapsedMilliseconds);
-                if (currDistance < bestDistance)
+
+                evaluated.Add((release, distance, extraTracks));
+
+                if (currDistance == 0.0)
                 {
-                    bestDistance = currDistance;
-                    localBookRelease.Distance = distance;
-                    localBookRelease.Edition = release;
-                    localBookRelease.ExistingTracks = extraTracks;
-                    if (currDistance == 0.0)
-                    {
-                        break;
-                    }
+                    break;
                 }
+            }
+
+            // Choose the book before the edition: only candidates with a title close to the best title match compete on the full distance.
+            var bestTitle = BookMatchSelector.BestTitleDistance(evaluated.Select(x => x.Distance));
+
+            foreach (var excluded in evaluated.Where(x => !BookMatchSelector.IsEligible(x.Distance, bestTitle)))
+            {
+                _logger.Debug("Release {0} is not considered: its title distance {1} is more than {2} worse than the best title match {3}",
+                              excluded.Release,
+                              BookMatchSelector.TitleDistance(excluded.Distance),
+                              BookMatchSelector.TitleMargin,
+                              bestTitle);
+            }
+
+            var chosen = BookMatchSelector.ChooseBest(evaluated.Select(x => x.Distance).ToList(), bestDistance);
+
+            if (chosen >= 0)
+            {
+                localBookRelease.Distance = evaluated[chosen].Distance;
+                localBookRelease.Edition = evaluated[chosen].Release;
+                localBookRelease.ExistingTracks = evaluated[chosen].ExtraTracks;
             }
 
             watch.Stop();
