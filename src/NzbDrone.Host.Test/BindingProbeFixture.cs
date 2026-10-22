@@ -6,6 +6,7 @@ using System.Text;
 using System.Threading.Tasks;
 using DryIoc;
 using DryIoc.Microsoft.DependencyInjection;
+using FluentValidation;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Hosting.Server;
@@ -16,9 +17,11 @@ using Microsoft.Extensions.Logging;
 using NUnit.Framework;
 using NzbDrone.Common.Composition.Extensions;
 using NzbDrone.Common.Serializer;
+using NzbDrone.Http.REST.Attributes;
 using Readarr.Api.V1.Commands;
 using Readarr.Http;
 using Readarr.Http.Middleware;
+using Readarr.Http.REST;
 
 namespace NzbDrone.App.Test
 {
@@ -56,6 +59,39 @@ namespace NzbDrone.App.Test
         public string Post([FromBody] CommandResource resource) => resource == null ? "null-resource" : (resource.Name ?? "null-name");
     }
 
+    // Real base class, plain attribute.
+    [V1ApiController("probecmdbase")]
+    public class CommandRestBaseProbeController : RestController<CommandResource>
+    {
+        [HttpPost]
+        public IActionResult Post(CommandResource resource) => Content(resource == null ? "null-resource" : (resource.Name ?? "null-name"));
+
+        protected override CommandResource GetResourceById(int id) => null;
+    }
+
+    // Plain base class, real action attribute.
+    [V1ApiController("probecmdattr")]
+    public class CommandRestAttrProbeController : ControllerBase
+    {
+        [RestPostById]
+        public IActionResult Post(CommandResource resource) => Content(resource == null ? "null-resource" : (resource.Name ?? "null-name"));
+    }
+
+    // Real base class, real action attribute and the validation the command controller declares.
+    [V1ApiController("probecmdfull")]
+    public class CommandRestFullProbeController : RestController<CommandResource>
+    {
+        public CommandRestFullProbeController()
+        {
+            PostValidator.RuleFor(c => c.Name).NotNull().NotEmpty();
+        }
+
+        [RestPostById]
+        public IActionResult Post(CommandResource resource) => Content(resource == null ? "null-resource" : (resource.Name ?? "null-name"));
+
+        protected override CommandResource GetResourceById(int id) => null;
+    }
+
     [TestFixture]
     public class BindingProbeFixture
     {
@@ -82,7 +118,7 @@ namespace NzbDrone.App.Test
 
             if (buffering)
             {
-                app.UseMiddleware<BufferingMiddleware>(new List<string> { "/api/v1/probe", "/api/v1/probecmd", "/api/v1/probecmdbody" });
+                app.UseMiddleware<BufferingMiddleware>(new List<string> { "/api/v1/probe", "/api/v1/probecmd", "/api/v1/probecmdbody", "/api/v1/probecmdbase", "/api/v1/probecmdattr", "/api/v1/probecmdfull" });
             }
 
             app.MapControllers();
@@ -97,7 +133,10 @@ namespace NzbDrone.App.Test
                 var command = "{\"name\":\"RefreshAuthor\",\"authorId\":40}";
                 var cmdInferred = await Post(client, "api/v1/probecmd", command);
                 var cmdExplicit = await Post(client, "api/v1/probecmdbody", command);
-                return $"{label}: plain=[{plain}] ours=[{ours}] CommandResource inferred=[{cmdInferred}] explicit=[{cmdExplicit}]";
+                var restBase = await Post(client, "api/v1/probecmdbase", command);
+                var restAttr = await Post(client, "api/v1/probecmdattr", command);
+                var restFull = await Post(client, "api/v1/probecmdfull", command);
+                return $"{label}: inferred=[{cmdInferred}] explicit=[{cmdExplicit}] restBase=[{restBase}] restAttr=[{restAttr}] restFull=[{restFull}]";
             }
             finally
             {
