@@ -16,6 +16,7 @@ using Microsoft.Extensions.Logging;
 using NUnit.Framework;
 using NzbDrone.Common.Composition.Extensions;
 using NzbDrone.Common.Serializer;
+using Readarr.Api.V1.Commands;
 using Readarr.Http;
 using Readarr.Http.Middleware;
 
@@ -41,12 +42,26 @@ namespace NzbDrone.App.Test
         public string Post(ProbeResource resource) => resource == null ? "null-resource" : (resource.Name ?? "null-name");
     }
 
+    [V1ApiController("probecmd")]
+    public class CommandInferredProbeController : ControllerBase
+    {
+        [HttpPost]
+        public string Post(CommandResource resource) => resource == null ? "null-resource" : (resource.Name ?? "null-name");
+    }
+
+    [V1ApiController("probecmdbody")]
+    public class CommandExplicitProbeController : ControllerBase
+    {
+        [HttpPost]
+        public string Post([FromBody] CommandResource resource) => resource == null ? "null-resource" : (resource.Name ?? "null-name");
+    }
+
     [TestFixture]
     public class BindingProbeFixture
     {
-        private static async Task<string> Post(HttpClient client, string path)
+        private static async Task<string> Post(HttpClient client, string path, string json = "{\"name\":\"x\"}")
         {
-            var response = await client.PostAsync(path, new StringContent("{\"name\":\"x\"}", Encoding.UTF8, "application/json"));
+            var response = await client.PostAsync(path, new StringContent(json, Encoding.UTF8, "application/json"));
             var text = await response.Content.ReadAsStringAsync();
             return (int)response.StatusCode + ":" + (text.Length > 40 ? text.Substring(0, 40) : text);
         }
@@ -67,7 +82,7 @@ namespace NzbDrone.App.Test
 
             if (buffering)
             {
-                app.UseMiddleware<BufferingMiddleware>(new List<string> { "/api/v1/probe" });
+                app.UseMiddleware<BufferingMiddleware>(new List<string> { "/api/v1/probe", "/api/v1/probecmd", "/api/v1/probecmdbody" });
             }
 
             app.MapControllers();
@@ -79,7 +94,10 @@ namespace NzbDrone.App.Test
                 using var client = new HttpClient { BaseAddress = new Uri(address) };
                 var plain = await Post(client, "probe/plain");
                 var ours = await Post(client, "api/v1/probe");
-                return $"{label}: plain=[{plain}] ours=[{ours}]";
+                var command = "{\"name\":\"RefreshAuthor\",\"authorId\":40}";
+                var cmdInferred = await Post(client, "api/v1/probecmd", command);
+                var cmdExplicit = await Post(client, "api/v1/probecmdbody", command);
+                return $"{label}: plain=[{plain}] ours=[{ours}] CommandResource inferred=[{cmdInferred}] explicit=[{cmdExplicit}]";
             }
             finally
             {
