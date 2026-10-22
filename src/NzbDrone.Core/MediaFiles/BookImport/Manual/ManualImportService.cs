@@ -270,6 +270,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Manual
             item.Id = HashConverter.GetHashInt31(decision.Item.Path);
             item.Path = decision.Item.Path;
             item.Name = Path.GetFileNameWithoutExtension(decision.Item.Path);
+
             // Opened from the queue the download id is known. Opened by folder or file path it is not, so find the tracked download that holds the file.
             item.DownloadId = downloadId.IsNotNullOrWhiteSpace()
                 ? downloadId
