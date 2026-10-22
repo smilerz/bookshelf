@@ -12,7 +12,6 @@ using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.Server.Features;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using NUnit.Framework;
 using NzbDrone.Common.Composition.Extensions;
@@ -83,31 +82,37 @@ namespace NzbDrone.App.Test
             }
         }
 
+        private static void UseOurJson(WebApplicationBuilder builder)
+        {
+            builder.Services.AddControllers()
+                .AddApplicationPart(typeof(OurProbeController).Assembly)
+                .AddJsonOptions(o => STJson.ApplySerializerSettings(o.JsonSerializerOptions));
+        }
+
+        private static void UseControllersAsServices(WebApplicationBuilder builder)
+        {
+            builder.Services.AddControllers()
+                .AddApplicationPart(typeof(OurProbeController).Assembly)
+                .AddJsonOptions(o => STJson.ApplySerializerSettings(o.JsonSerializerOptions))
+                .AddControllersAsServices();
+        }
+
+        private static void UseDryIoc(WebApplicationBuilder builder)
+        {
+            builder.Host.UseServiceProviderFactory(new DryIocServiceProviderFactory(new Container(rules => rules.WithNzbDroneRules())));
+            UseControllersAsServices(builder);
+        }
+
         [Test]
         public async Task diagnose_which_part_of_the_setup_loses_the_body()
         {
-            var part = typeof(OurProbeController).Assembly;
             var results = new List<string>();
 
-            results.Add(await Run("H1 defaults", b => b.Services.AddControllers().AddApplicationPart(part), false));
-
-            results.Add(await Run("H2 +our json", b => b.Services.AddControllers().AddApplicationPart(part)
-                .AddJsonOptions(o => STJson.ApplySerializerSettings(o.JsonSerializerOptions)), false));
-
-            results.Add(await Run("H3 +buffering", b => b.Services.AddControllers().AddApplicationPart(part)
-                .AddJsonOptions(o => STJson.ApplySerializerSettings(o.JsonSerializerOptions)), true));
-
-            results.Add(await Run("H4 +controllersAsServices", b => b.Services.AddControllers().AddApplicationPart(part)
-                .AddJsonOptions(o => STJson.ApplySerializerSettings(o.JsonSerializerOptions))
-                .AddControllersAsServices(), true));
-
-            results.Add(await Run("H5 +DryIoc", b =>
-            {
-                b.Host.UseServiceProviderFactory(new DryIocServiceProviderFactory(new Container(rules => rules.WithNzbDroneRules())));
-                b.Services.AddControllers().AddApplicationPart(part)
-                    .AddJsonOptions(o => STJson.ApplySerializerSettings(o.JsonSerializerOptions))
-                    .AddControllersAsServices();
-            }, true));
+            results.Add(await Run("H1 defaults", b => b.Services.AddControllers().AddApplicationPart(typeof(OurProbeController).Assembly), false));
+            results.Add(await Run("H2 +our json", UseOurJson, false));
+            results.Add(await Run("H3 +buffering", UseOurJson, true));
+            results.Add(await Run("H4 +controllersAsServices", UseControllersAsServices, true));
+            results.Add(await Run("H5 +DryIoc", UseDryIoc, true));
 
             Assert.Fail("PROBE: " + string.Join(" || ", results));
         }
