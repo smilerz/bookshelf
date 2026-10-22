@@ -93,6 +93,7 @@ namespace NzbDrone.Host
             {
                 STJson.ApplySerializerSettings(options.JsonSerializerOptions);
             })
+            .ConfigureApiBehaviorOptions(ApiBehaviorSetup.Configure)
             .AddControllersAsServices();
 
             services.AddSwaggerGen(c =>
