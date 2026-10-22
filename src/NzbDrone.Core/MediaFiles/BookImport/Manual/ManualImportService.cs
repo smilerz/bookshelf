@@ -270,7 +270,10 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Manual
             item.Id = HashConverter.GetHashInt31(decision.Item.Path);
             item.Path = decision.Item.Path;
             item.Name = Path.GetFileNameWithoutExtension(decision.Item.Path);
-            item.DownloadId = downloadId;
+            // Opened from the queue the download id is known. Opened by folder or file path it is not, so find the tracked download that holds the file.
+            item.DownloadId = downloadId.IsNotNullOrWhiteSpace()
+                ? downloadId
+                : TrackedDownloadPathMatcher.Find(_trackedDownloadService.GetTrackedDownloads(), decision.Item.Path)?.DownloadItem.DownloadId;
 
             if (decision.Item.Author != null)
             {
@@ -371,9 +374,14 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Manual
                 else
                 {
                     var trackedDownload = _trackedDownloadService.Find(downloadId);
-                    var importResults = _importApprovedBooks.Import(bookImportDecisions, message.ReplaceExistingFiles, trackedDownload.DownloadItem, message.ImportMode);
+                    var importResults = _importApprovedBooks.Import(bookImportDecisions, message.ReplaceExistingFiles, trackedDownload?.DownloadItem, message.ImportMode);
 
                     imported.AddRange(importResults);
+
+                    if (trackedDownload == null)
+                    {
+                        continue;
+                    }
 
                     foreach (var importResult in importResults)
                     {
@@ -391,7 +399,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Manual
             foreach (var groupedTrackedDownload in importedTrackedDownload.GroupBy(i => i.TrackedDownload.DownloadItem.DownloadId).ToList())
             {
                 var trackedDownload = groupedTrackedDownload.First().TrackedDownload;
-                var outputPath = trackedDownload.ImportItem.OutputPath.FullPath;
+                var outputPath = (trackedDownload.ImportItem?.OutputPath ?? trackedDownload.DownloadItem.OutputPath).FullPath;
 
                 if (_diskProvider.FolderExists(outputPath))
                 {
