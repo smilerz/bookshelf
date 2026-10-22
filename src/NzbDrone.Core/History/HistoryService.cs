@@ -380,7 +380,10 @@ namespace NzbDrone.Core.History
                 historyToAdd.Add(history);
             }
 
-            _historyRepository.InsertMany(historyToAdd);
+            if (historyToAdd.Any())
+            {
+                _historyRepository.InsertMany(historyToAdd);
+            }
         }
 
         public List<EntityHistory> Since(DateTime date, EntityHistoryEventType? eventType)
