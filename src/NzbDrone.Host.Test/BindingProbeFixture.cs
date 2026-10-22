@@ -58,7 +58,13 @@ namespace NzbDrone.App.Test
             builder.Logging.ClearProviders();
             configure(builder);
 
+            // The Bookshelf controller marker declares the CORS policy "ApiCorsPolicy", which needs the policy and the middleware.
+            builder.Services.AddCors(o => o.AddPolicy(VersionedApiControllerAttribute.API_CORS_POLICY, p => p.AllowAnyOrigin()));
+
             var app = builder.Build();
+            app.UseRouting();
+            app.UseCors();
+
             if (buffering)
             {
                 app.UseMiddleware<BufferingMiddleware>(new List<string> { "/api/v1/probe" });
